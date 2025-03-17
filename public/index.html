@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EstagIArio - Assistente Jurídico</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/imask@6.0.7/dist/imask.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00B2D6', // Azul turquesa da logo
+                        secondary: '#1e3a5f', // Azul marinho mais suave (substituindo o preto)
+                        accent: '#36A4BB', // Versão mais escura do primary para elementos de destaque
+                        light: {
+                            bg: '#FFFFFF',
+                            text: '#333333'
+                        },
+                        dark: {
+                            bg: '#1e3a5f',
+                            text: '#F5F5F5'
+                        }
+                    }
+                }
+            }
+        }
+
+        // Detectar preferência de tema
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+    </script>    
+
+    <style>
+        /* Adicionar pulsação ao robô da logo */
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+        .logo-pulse:hover {
+            animation: pulse 2s infinite;
+        }
+        
+        /* Estrutura para rodapé fixo */
+        body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh; /* Altura total da viewport */
+        }
+        
+        main {
+            flex-grow: 1; /* Expande para ocupar o espaço disponível */
+            padding-bottom: 2rem; /* Espaço para não sobrepor o rodapé em dispositivos móveis */
+        }
+        
+        footer {
+            position: sticky;
+            bottom: 0;
+            width: 100%;
+            z-index: 10;
+        }
+        
+        /* Estilos para a timeline de processos CNJ */
+        .timeline {
+            position: relative;
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .timeline::after {
+            content: '';
+            position: absolute;
+            width: 3px;
+            background-color: #e0e0e0;
+            top: 0;
+            bottom: 0;
+            left: 120px;
+            margin-left: -1px;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+            display: flex;
+        }
+
+        .timeline-date {
+            min-width: 120px;
+            font-weight: 600;
+            color: #6c757d;
+            padding-right: 15px;
+            text-align: right;
+            font-size: 0.85rem;
+        }
+
+        .timeline-content {
+            position: relative;
+            margin-left: 30px;
+            padding: 15px;
+            border-radius: 6px;
+            width: calc(100% - 150px);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .timeline-content::before {
+            content: '';
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background-color: white;
+            border: 3px solid #00B2D6;
+            left: -38px;
+            top: 16px;
+            z-index: 1;
+        }
+
+        .complementos {
+            margin-top: 8px;
+            border-top: 1px dashed #e0e0e0;
+            padding-top: 8px;
+            color: #666;
+        }
+
+        /* Responsividade em telas pequenas */
+        @media screen and (max-width: 768px) {
+            .timeline::after {
+                left: 30px;
+            }
+            
+            .timeline-item {
+                flex-direction: column;
+            }
+            
+            .timeline-date {
+                min-width: auto;
+                text-align: left;
+                margin-left: 45px;
+                margin-bottom: 5px;
+            }
+            
+            .timeline-content {
+                width: calc(100% - 45px);
+                margin-left: 45px;
+            }
+            
+            .timeline-content::before {
+                left: -33px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text min-h-screen transition-colors duration-200">
+    <header class="bg-secondary text-white p-4 shadow-md">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center space-x-2 mb-3 md:mb-0">                
+                <img src="/logo.png" alt="Logo EstagIArio" class="h-10 logo-pulse">
+                <h1 class="text-xl md:text-2xl font-bold">estag<span class="text-primary">IA</span>rio</h1>
+            </div>
+            <p class="text-sm md:text-base">Seu assistente jurídico inteligente</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 max-w-5xl">
+        <!-- Abas de navegação -->
+        <div class="flex flex-wrap border-b border-gray-300 dark:border-gray-700 mb-6">
+            <button id="tab-resumo" class="tab-button active px-4 py-2 text-sm md:text-base font-medium mr-1 rounded-t-lg">
+                Resumo de Processos
+            </button>
+            <button id="tab-peticao" class="tab-button px-4 py-2 text-sm md:text-base font-medium mr-1 rounded-t-lg">
+                Petição Inicial
+            </button>
+            <button id="tab-extracao" class="tab-button px-4 py-2 text-sm md:text-base font-medium mr-1 rounded-t-lg">
+                Extração de Texto
+            </button>
+            <button id="tab-analise" class="tab-button px-4 py-2 text-sm md:text-base font-medium mr-1 rounded-t-lg">
+                Análise Jurídica
+            </button>
+            <button id="tab-cnj" class="tab-button px-4 py-2 text-sm md:text-base font-medium rounded-t-lg">
+                Consulta CNJ
+            </button>
+        </div>
+
+        <!-- Conteúdo da aba "Resumo de Processos" -->
+        <div id="content-resumo" class="tab-content active">
+            <h2 class="text-xl font-semibold mb-4">Resumo de Processos</h2>
+            <p class="mb-4">Insira o texto do processo para receber um resumo claro e objetivo dos pontos principais.</p>
+            
+            <div class="mb-4">
+                <label for="texto-processo" class="block mb-2 font-medium">Texto do Processo:</label>
+                <textarea id="texto-processo" rows="8" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base" placeholder="Cole aqui o texto do processo que deseja resumir..."></textarea>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block mb-2 font-medium">Opções adicionais:</label>
+                <div class="flex flex-wrap gap-3">
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="resumo-destacar-datas" class="mr-2">
+                        <span>Destacar datas</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="resumo-partes-envolvidas" class="mr-2">
+                        <span>Enfatizar partes envolvidas</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="resumo-fundamentos" class="mr-2">
+                        <span>Focar nos fundamentos legais</span>
+                    </label>
+                </div>
+            </div>
+            
+            <button id="btn-gerar-resumo" class="px-6 py-3 bg-primary hover:bg-accent text-white rounded-lg flex items-center justify-center font-medium transition-colors">
+                <svg id="resumo-spinner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Gerar Resumo
+            </button>
+
+            <div id="resultado-resumo" class="mt-6 p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 hidden">
+                <h3 class="text-lg font-semibold mb-3">Resumo do Processo</h3>
+                <div id="conteudo-resumo" class="prose dark:prose-invert max-w-none"></div>
+                
+                <!-- Adicionando informações de tokens e custo -->
+                <div id="info-tokens-resumo" class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 hidden">
+                    <div class="flex flex-wrap justify-between">
+                        <span>Tokens consumidos: <span id="tokens-resumo" class="font-medium"></span></span>
+                        <span>Tempo de processamento: <span id="tempo-resumo" class="font-medium"></span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conteúdo da aba "Petição Inicial" -->
+        <div id="content-peticao" class="tab-content hidden">
+            <h2 class="text-xl font-semibold mb-4">Assistente de Petição Inicial</h2>
+            <p class="mb-4">Forneça as informações necessárias para gerar uma petição inicial personalizada.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="tipo-acao" class="block mb-2 font-medium">Tipo de Ação:</label>
+                    <select id="tipo-acao" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base">
+                        <option value="">Selecione o tipo de ação</option>
+                        <option value="Ação de Cobrança">Ação de Cobrança</option>
+                        <option value="Ação de Indenização">Ação de Indenização</option>
+                        <option value="Divórcio">Divórcio</option>
+                        <option value="Pensão Alimentícia">Pensão Alimentícia</option>
+                        <option value="Relação de Consumo">Relação de Consumo</option>
+                        <option value="outro">Outro (especificar)</option>
+                    </select>
+                </div>
+                <div id="outro-tipo-container" class="hidden">
+                    <label for="outro-tipo" class="block mb-2 font-medium">Especifique o tipo de ação:</label>
+                    <input type="text" id="outro-tipo" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base" placeholder="Descreva o tipo de ação">
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label for="partes-processo" class="block mb-2 font-medium">Partes do Processo:</label>
+                <textarea id="partes-processo" rows="4" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base" placeholder="Nome do autor, réu e suas qualificações..."></textarea>
+            </div>
+            
+            <div class="mb-4">
+                <label for="fatos" class="block mb-2 font-medium">Descrição dos Fatos:</label>
+                <textarea id="fatos" rows="6" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base" placeholder="Descreva os fatos relevantes para a ação..."></textarea>
+            </div>
+            
+            <div class="mb-6">
+                <label for="pedidos" class="block mb-2 font-medium">Pedidos:</label>
+                <textarea id="pedidos" rows="4" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base" placeholder="Liste os pedidos que deseja fazer ao juízo..."></textarea>
+            </div>
+            
+            <button id="btn-gerar-peticao" class="px-6 py-3 bg-primary hover:bg-accent text-white rounded-lg flex items-center justify-center font-medium transition-colors">
+                <svg id="peticao-spinner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Gerar Petição Inicial
+            </button>
+
+            <div id="resultado-peticao" class="mt-6 p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 hidden">
+                <h3 class="text-lg font-semibold mb-3">Petição Inicial Gerada</h3>                
+                <div id="conteudo-peticao" class="prose dark:prose-invert max-w-none"></div>
+                
+                <!-- Adicionando informações de tokens e custo -->
+                <div id="info-tokens-peticao" class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 hidden">
+                    <div class="flex flex-wrap justify-between">
+                        <span>Tokens consumidos: <span id="tokens-peticao" class="font-medium"></span></span>
+                        <span>Tempo de processamento: <span id="tempo-peticao" class="font-medium"></span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conteúdo da aba "Extração de Texto" -->
+        <div id="content-extracao" class="tab-content hidden">
+            <h2 class="text-xl font-semibold mb-4">Extração de Texto de Imagens/PDFs</h2>
+            <p class="mb-4">Faça upload de uma imagem ou PDF para extrair o texto contido no documento.</p>
+            
+            <div class="mb-4">
+                <label class="block mb-2 font-medium">Arquivo (Imagem ou PDF):</label>
+                <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-primary mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                        <span class="font-semibold">Clique para upload</span> ou arraste e solte
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Formatos suportados: PNG, JPG, WEBP e outros formatos de imagem, além de PDFs.
+                    </p>
+                    <input id="arquivo-upload" type="file" accept="image/*,.pdf" class="hidden" />
+                    <button id="btn-selecionar-arquivo" class="mt-3 px-4 py-2 bg-primary hover:bg-accent text-white rounded-lg text-sm font-medium transition-colors">
+                        Selecionar Arquivo
+                    </button>
+                </div>
+                <p id="arquivo-selecionado" class="mt-2 text-sm text-gray-500 dark:text-gray-400 hidden">
+                    Arquivo selecionado: <span id="nome-arquivo"></span>
+                </p>
+            </div>
+
+            <div class="mb-4">
+                <label class="block mb-2 font-medium">Opções:</label>
+                <div class="flex flex-wrap gap-3">
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="extracao-corrigir-erros" class="mr-2" checked>
+                        <span>Corrigir erros de OCR</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="extracao-manter-formatacao" class="mr-2">
+                        <span>Tentar manter formatação</span>
+                    </label>
+                </div>
+            </div>
+            
+            <button id="btn-extrair-texto" class="px-6 py-3 bg-primary hover:bg-accent text-white rounded-lg flex items-center justify-center font-medium transition-colors" disabled>
+                <svg id="extracao-spinner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Extrair Texto
+            </button>
+
+            <div id="resultado-extracao" class="mt-6 hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-lg font-semibold">Texto Extraído</h3>
+                    <button id="btn-copiar-texto" class="p-2 text-primary hover:text-accent flex items-center text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Copiar
+                    </button>
+                </div>
+                <div id="conteudo-extracao" class="p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 max-h-96 overflow-y-auto whitespace-pre-wrap"></div>
+                
+                <!-- Adicionando informações de tokens e custo -->
+                <div id="info-tokens-extracao" class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 hidden">
+                    <div class="flex flex-wrap justify-between">
+                        <span>Tokens consumidos: <span id="tokens-extracao" class="font-medium"></span></span>
+                        <span>Tempo de processamento: <span id="tempo-extracao" class="font-medium"></span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conteúdo da aba "Análise Jurídica" -->
+        <div id="content-analise" class="tab-content hidden">
+            <h2 class="text-xl font-semibold mb-4">Análise Jurídica</h2>
+            <p class="mb-4">Insira um texto legal para obter uma análise jurídica detalhada.</p>
+            
+            <div class="mb-4">
+                <label for="tipo-analise" class="block mb-2 font-medium">Tipo de Análise:</label>
+                <select id="tipo-analise" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base">
+                    <option value="">Selecione o tipo de análise</option>
+                    <option value="contrato">Análise de Contrato</option>
+                    <option value="decisao">Análise de Decisão Judicial</option>
+                    <option value="legislacao">Interpretação de Legislação</option>
+                    <option value="jurisprudencia">Busca de Jurisprudência</option>
+                    <option value="risco">Avaliação de Riscos Legais</option>
+                </select>
+            </div>
+            
+            <div class="mb-4">
+                <label for="texto-analise" class="block mb-2 font-medium">Texto para Análise:</label>
+                <textarea id="texto-analise" rows="8" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base" placeholder="Insira o texto que deseja analisar..."></textarea>
+            </div>
+            
+            <div class="mb-4">
+                <label for="pergunta-especifica" class="block mb-2 font-medium">Pergunta Específica (opcional):</label>
+                <input type="text" id="pergunta-especifica" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base" placeholder="Por exemplo: 'Quais os principais riscos?', 'É legal esta cláusula?'">
+            </div>
+            
+            <button id="btn-fazer-analise" class="px-6 py-3 bg-primary hover:bg-accent text-white rounded-lg flex items-center justify-center font-medium transition-colors">
+                <svg id="analise-spinner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Realizar Análise
+            </button>
+
+            <div id="resultado-analise" class="mt-6 p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 hidden">
+                <h3 class="text-lg font-semibold mb-3">Análise Jurídica</h3>
+                <div id="conteudo-analise" class="prose dark:prose-invert max-w-none"></div>
+                
+                <!-- Adicionando informações de tokens e custo -->
+                <div id="info-tokens-analise" class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 hidden">
+                    <div class="flex flex-wrap justify-between">
+                        <span>Tokens consumidos: <span id="tokens-analise" class="font-medium"></span></span>
+                        <span>Tempo de processamento: <span id="tempo-analise" class="font-medium"></span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conteúdo da nova aba "Consulta CNJ" -->
+        <div id="content-cnj" class="tab-content hidden">
+            <h2 class="text-xl font-semibold mb-4">Consulta de Processos Judiciais</h2>
+            <p class="mb-4">Consulte andamentos processuais utilizando a API pública do CNJ.</p>
+            
+            <form id="form-consulta-processo" class="mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="numero-processo" class="block mb-2 font-medium">Número do Processo:</label>
+                        <input type="text" id="numero-processo" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base" placeholder="0000000-00.0000.0.00.0000" required>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Digite o número no formato CNJ</p>
+                    </div>
+                    <div>
+                        <label for="tribunal-processo" class="block mb-2 font-medium">Tribunal:</label>
+                        <select id="tribunal-processo" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-base" required>
+                            <option value="" selected disabled>Selecione o tribunal</option>
+                            <!-- Os tribunais serão carregados dinamicamente via JavaScript -->
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap gap-2">
+                    <button type="submit" id="btn-consultar-processo" class="px-6 py-3 bg-primary hover:bg-accent text-white rounded-lg flex items-center justify-center font-medium transition-colors">
+                        <svg id="cnj-spinner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Consultar Processo
+                    </button>
+                    <button type="button" id="btn-limpar-consulta" class="px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center justify-center font-medium transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Limpar
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Indicador de carregamento -->
+            <div id="consulta-processo-loading" class="text-center py-10 hidden">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+                <p class="mt-4 text-gray-600 dark:text-gray-300">Consultando o processo no CNJ...</p>
+            </div>
+            
+            <!-- Mensagens de erro ou informativas -->
+            <div id="consulta-processo-mensagem" class="mb-6 hidden">
+                <div class="px-4 py-3 rounded-lg" role="alert">
+                    <span id="mensagem-texto"></span>
+                </div>
+            </div>
+            
+            <!-- Resultado da consulta -->
+            <div id="resultado-consulta-processo" class="mt-6 hidden">
+                <!-- Cabeçalho do processo -->
+                <div class="mb-6 p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900">
+                    <h3 class="text-lg font-semibold mb-4" id="processo-numero">Processo: <span></span></h3>                   
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h4 class="text-base font-medium text-gray-600 dark:text-gray-400 mb-2">Informações do Processo</h4>
+                            <dl class="grid grid-cols-3 gap-x-2 gap-y-3">
+                                <dt class="col-span-1 text-sm text-gray-500 dark:text-gray-400">Tribunal:</dt>
+                                <dd class="col-span-2 text-sm" id="processo-tribunal"></dd>
+                                
+                                <dt class="col-span-1 text-sm text-gray-500 dark:text-gray-400">Classe:</dt>
+                                <dd class="col-span-2 text-sm" id="processo-classe"></dd>
+                                
+                                <dt class="col-span-1 text-sm text-gray-500 dark:text-gray-400">Órgão:</dt>
+                                <dd class="col-span-2 text-sm" id="processo-orgao"></dd>
+                            </dl>
+                        </div>
+                        
+                        <div>
+                            <h4 class="text-base font-medium text-gray-600 dark:text-gray-400 mb-2">Dados Complementares</h4>
+                            <dl class="grid grid-cols-3 gap-x-2 gap-y-3">
+                                <dt class="col-span-1 text-sm text-gray-500 dark:text-gray-400">Ajuizamento:</dt>
+                                <dd class="col-span-2 text-sm" id="processo-data-ajuizamento"></dd>
+                                
+                                <dt class="col-span-1 text-sm text-gray-500 dark:text-gray-400">Atualização:</dt>
+                                <dd class="col-span-2 text-sm" id="processo-ultima-atualizacao"></dd>
+                                
+                                <dt class="col-span-1 text-sm text-gray-500 dark:text-gray-400">Sistema:</dt>
+                                <dd class="col-span-2 text-sm" id="processo-sistema"></dd>
+                            </dl>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h4 class="text-base font-medium text-gray-600 dark:text-gray-400 mb-2">Assuntos</h4>
+                        <div id="processo-assuntos" class="flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+                
+                <!-- Movimentações do processo -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold mb-4">Movimentações do Processo</h3>
+                    <div class="timeline" id="processo-movimentos">
+                        <!-- Movimentações serão inseridas aqui via JavaScript -->
+                    </div>
+                </div>
+                
+                <!-- Adicionando informações de tempo de processamento -->
+                <div id="info-tokens-cnj" class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 hidden">
+                    <div class="flex flex-wrap justify-between">
+                        <span>Tempo de processamento: <span id="tempo-cnj" class="font-medium"></span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-secondary dark:bg-secondary p-4 text-white border-t border-primary/30 shadow-md">
+        <div class="container mx-auto text-center text-sm">
+            <p>estag<span class="text-primary">IA</span>rio - Assistente Jurídico Inteligente</p>
+            <p class="mt-1">Desenvolvido para auxiliar profissionais da área jurídica</p>
+        </div>
+    </footer>
+
+    <script>
+        // Configuração do endpoint da API
+        const API_BASE_URL = 'http://localhost:3000/api';
+        
+        // Função auxiliar para mostrar/esconder elementos
+        function toggleDisplay(element, show) {
+            element.classList.toggle('hidden', !show);
+        }
+
+        // Função auxiliar para mostrar spinner de carregamento
+        function toggleSpinner(spinnerId, show) {
+            const spinner = document.getElementById(spinnerId);
+            toggleDisplay(spinner, show);
+        }
+
+        // Função para formatar o tempo de processamento
+        function formatProcessingTime(tempoMs) {
+            // Converter para número caso seja uma string
+            if (typeof tempoMs === 'string') {
+                tempoMs = parseInt(tempoMs);
+            }
+            
+            // Se o tempo for inválido, retorna um traço
+            if (!tempoMs && tempoMs !== 0) {
+                return "-";
+            }
+
+            // Se for maior que 1 segundo, mostrar em segundos
+            if (tempoMs >= 1000) {
+                return (tempoMs / 1000).toFixed(2) + " s";
+            }
+            
+            // Caso contrário, mostrar em milissegundos
+            return tempoMs + " ms";
+        }
+
+        // Função para lidar com as abas
+        function setupTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Remover classe 'active' de todos os botões e conteúdos
+                    tabButtons.forEach(btn => btn.classList.remove('active', 'bg-primary', 'text-white', 'border-b-2', 'border-primary'));
+                    tabContents.forEach(content => content.classList.add('hidden'));
+                    
+                    // Adicionar classe 'active' ao botão clicado
+                    button.classList.add('active', 'bg-primary', 'text-white', 'border-b-2', 'border-primary');
+                    
+                    // Exibir o conteúdo correspondente
+                    const contentId = 'content-' + button.id.split('-')[1];
+                    toggleDisplay(document.getElementById(contentId), true);
+                });
+            });
+        }
+
+        // Evento para mostrar/esconder campo de "outro tipo de ação"
+        function setupPeticaoForm() {
+            const tipoAcaoSelect = document.getElementById('tipo-acao');
+            const outroTipoContainer = document.getElementById('outro-tipo-container');
+            
+            tipoAcaoSelect.addEventListener('change', () => {
+                toggleDisplay(outroTipoContainer, tipoAcaoSelect.value === 'outro');
+            });
+        }
+
+        // Configuração da funcionalidade de upload de arquivo
+        function setupFileUpload() {
+            const btnSelecionarArquivo = document.getElementById('btn-selecionar-arquivo');
+            const arquivoUpload = document.getElementById('arquivo-upload');
+            const arquivoSelecionado = document.getElementById('arquivo-selecionado');
+            const nomeArquivo = document.getElementById('nome-arquivo');
+            const btnExtrairTexto = document.getElementById('btn-extrair-texto');
+            
+            btnSelecionarArquivo.addEventListener('click', () => {
+                arquivoUpload.click();
+            });
+            
+            arquivoUpload.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    nomeArquivo.textContent = file.name;
+                    toggleDisplay(arquivoSelecionado, true);
+                    btnExtrairTexto.disabled = false;
+                } else {
+                    toggleDisplay(arquivoSelecionado, false);
+                    btnExtrairTexto.disabled = true;
+                }
+            });
+        }
+
+        // Função para tratar erros de API
+        async function handleApiResponse(response) {
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        }
+
+        // Atualiza as informações de tokens e modelo para qualquer resultado
+        function updateTokenInfo(type, data) {           
+            
+            const infoTokensEl = document.getElementById(`info-tokens-${type}`);
+            const tokensEl = document.getElementById(`tokens-${type}`);
+            const tempoEl = document.getElementById(`tempo-${type}`);
+            
+            // Verificar se os elementos existem antes de tentar atualizá-los
+            if (tokensEl && data && data.tokens) {
+                tokensEl.textContent = data.tokens.total;
+            }
+            
+            // Verificar explicitamente a propriedade tempo
+            if (tempoEl && data) {
+                if (data.tempo !== undefined) {
+                    tempoEl.textContent = formatProcessingTime(data.tempo);
+                } else {
+                    tempoEl.textContent = "-";
+                }
+            }
+            
+            // Mostra as informações se tiver tokens ou tempo
+            if (infoTokensEl) {
+                toggleDisplay(infoTokensEl, !!(data && (data.tokens || data.tempo !== undefined)));
+            }
+        }
+
+        // Ações dos botões de geração de conteúdo
+        function setupActions() {
+            // Resumo de Processos
+            const btnGerarResumo = document.getElementById('btn-gerar-resumo');
+            btnGerarResumo.addEventListener('click', async () => {
+                const textoProcesso = document.getElementById('texto-processo').value.trim();
+                if (!textoProcesso) {
+                    alert('Por favor, insira o texto do processo para resumir.');
+                    return;
+                }
+                
+                const destacarDatas = document.getElementById('resumo-destacar-datas').checked;
+                const partesEnvolvidas = document.getElementById('resumo-partes-envolvidas').checked;
+                const fundamentos = document.getElementById('resumo-fundamentos').checked;
+                
+                // Construir a solicitação
+                let opcoes = [];
+                if (destacarDatas) opcoes.push("destacar datas importantes");
+                if (partesEnvolvidas) opcoes.push("enfatizar as partes envolvidas");
+                if (fundamentos) opcoes.push("focar nos fundamentos legais");
+                
+                toggleSpinner('resumo-spinner', true);
+                const resultadoResumo = document.getElementById('resultado-resumo');
+                const conteudoResumo = document.getElementById('conteudo-resumo');
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/ai/resumo`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            textoProcesso,
+                            opcoes
+                        })
+                    });
+                    
+                    const data = await handleApiResponse(response);
+                    conteudoResumo.innerHTML = marked.parse(data.resultado);
+                    toggleDisplay(resultadoResumo, true);
+
+                    // Adicionar botão de copiar
+                    adicionarBotaoCopiar('resultado-resumo', 'conteudo-resumo');
+                    
+                    // Atualizar informações de tokens
+                    updateTokenInfo('resumo', data);
+                } catch (err) {
+                    conteudoResumo.innerHTML = `<p class="text-red-500">Erro: ${err.message || 'Ocorreu um erro ao gerar o resumo.'}</p>`;
+                    toggleDisplay(resultadoResumo, true);
+                } finally {
+                    toggleSpinner('resumo-spinner', false);
+                }
+            });
+
+                /**
+     * Adiciona um botão de copiar a uma seção de resultado
+     * @param {string} containerId - ID do container que contém o resultado
+     * @param {string} contentId - ID do elemento que contém o texto a ser copiado
+     */
+        function adicionarBotaoCopiar(containerId, contentId) {
+            const container = document.getElementById(containerId);
+            const headerEl = container.querySelector('h3');
+            
+            // Verificar se o botão já existe
+            if (container.querySelector('.btn-copiar')) return;
+            
+            // Criar o botão de copiar
+            const btnCopiar = document.createElement('div');
+            btnCopiar.className = 'flex ml-auto';
+            btnCopiar.innerHTML = `
+                <button class="btn-copiar p-2 text-primary hover:text-accent flex items-center text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copiar
+                </button>
+            `;
+            
+            // Adicionar o botão ao cabeçalho
+            headerEl.className = 'text-lg font-semibold mb-3 flex items-center';
+            headerEl.appendChild(btnCopiar);
+            
+            // Adicionar evento de clique
+            const btnCopiarEl = btnCopiar.querySelector('.btn-copiar');
+            btnCopiarEl.addEventListener('click', () => {
+                const contentEl = document.getElementById(contentId);
+                let texto = '';
+                
+                // Obter o texto do elemento, considerando formatação HTML
+                if (contentEl.classList.contains('prose')) {
+                    // Se for um elemento com Markdown/HTML, pegamos o innerText
+                    texto = contentEl.innerText;
+                } else {
+                    // Caso contrário, usamos o textContent
+                    texto = contentEl.textContent;
+                }
+                
+                try {
+                    navigator.clipboard.writeText(texto);
+                    const htmlOriginal = btnCopiarEl.innerHTML;
+                    btnCopiarEl.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Copiado!
+                    `;
+                    setTimeout(() => {
+                        btnCopiarEl.innerHTML = htmlOriginal;
+                    }, 2000);
+                } catch (err) {
+                    console.error('Erro ao copiar texto:', err);
+                }
+            });
+        }
+
+
+        
+        /**
+         * Gera um PDF a partir do conteúdo de um elemento
+         * @param {string} elementId - ID do elemento a ser convertido para PDF
+         * @param {string} filename - Nome do arquivo PDF
+         */
+        function gerarPDF(elementId, filename) {
+            const element = document.getElementById(elementId);
+            
+            // Configurações do PDF
+            const opt = {
+                margin: [10, 10, 10, 10],
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            
+            // Exibir mensagem de carregamento
+            const loadingEl = document.createElement('div');
+            loadingEl.className = 'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50';
+            loadingEl.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-lg text-center">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
+                    <p class="mt-2">Gerando PDF...</p>
+                </div>
+            `;
+            document.body.appendChild(loadingEl);
+            
+            // Gerar o PDF
+            html2pdf().set(opt).from(element).save().then(() => {
+                // Remover mensagem de carregamento
+                document.body.removeChild(loadingEl);
+            });
+        }
+
+        // Adicione esta função para incluir o botão de PDF na consulta CNJ
+        function adicionarBotaoPDF() {
+            const container = document.getElementById('resultado-consulta-processo');
+            const primeiroHeader = container.querySelector('h3');
+            
+            // Verificar se o botão já existe
+            if (container.querySelector('.btn-gerar-pdf')) return;
+            
+            // Criar o botão de PDF
+            const btnPDF = document.createElement('div');
+            btnPDF.className = 'flex ml-auto';
+            btnPDF.innerHTML = `
+                <button class="btn-gerar-pdf p-2 bg-primary hover:bg-accent text-white rounded-lg flex items-center text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Gerar PDF
+                </button>
+            `;
+            
+            // Adicionar o botão ao cabeçalho
+            primeiroHeader.className = 'text-lg font-semibold mb-4 flex items-center';
+            primeiroHeader.appendChild(btnPDF);
+            
+            // Adicionar evento de clique
+            const btnPDFEl = btnPDF.querySelector('.btn-gerar-pdf');
+            btnPDFEl.addEventListener('click', () => {
+                const numeroProcesso = document.querySelector('#processo-numero span').textContent;
+                gerarPDF('resultado-consulta-processo', `Processo_${numeroProcesso.replace(/[^0-9]/g, '')}.pdf`);
+            });
+        }
+            
+            // Gerar Petição Inicial
+            const btnGerarPeticao = document.getElementById('btn-gerar-peticao');
+            btnGerarPeticao.addEventListener('click', async () => {
+                const tipoAcaoSelect = document.getElementById('tipo-acao');
+                let tipoAcao = tipoAcaoSelect.value;
+                
+                if (!tipoAcao) {
+                    alert('Por favor, selecione o tipo de ação.');
+                    return;
+                }
+                
+                if (tipoAcao === 'outro') {
+                    tipoAcao = document.getElementById('outro-tipo').value.trim();
+                    if (!tipoAcao) {
+                        alert('Por favor, especifique o tipo de ação.');
+                        return;
+                    }
+                }
+                
+                const partesProcesso = document.getElementById('partes-processo').value.trim();
+                const fatos = document.getElementById('fatos').value.trim();
+                const pedidos = document.getElementById('pedidos').value.trim();
+                
+                if (!partesProcesso || !fatos || !pedidos) {
+                    alert('Por favor, preencha todos os campos obrigatórios.');
+                    return;
+                }
+                
+                toggleSpinner('peticao-spinner', true);
+                const resultadoPeticao = document.getElementById('resultado-peticao');
+                const conteudoPeticao = document.getElementById('conteudo-peticao');
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/ai/peticao`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            tipoAcao,
+                            partesProcesso,
+                            fatos,
+                            pedidos
+                        })
+                    });
+                    
+                    const data = await handleApiResponse(response);
+                    let textoFormatado = data.resultado;
+
+                    if (!textoFormatado.includes('#') && !textoFormatado.includes('**')) {
+                        // Escapar caracteres HTML para evitar injeção de código
+                        textoFormatado = textoFormatado
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#039;');
+                        
+                        // Converter quebras de linha em <br> para HTML
+                        textoFormatado = textoFormatado.replace(/\n/g, '<br>');
+                        
+                        conteudoPeticao.innerHTML = textoFormatado;
+                    } else {
+                        // Se tiver formatação markdown, usamos o marked como antes
+                        conteudoPeticao.innerHTML = marked.parse(textoFormatado);
+                    }
+                    
+                    toggleDisplay(resultadoPeticao, true);
+
+                    // Adicionar botão de copiar
+                    adicionarBotaoCopiar('resultado-peticao', 'conteudo-peticao');
+                    
+                    // Atualizar informações de tokens
+                    updateTokenInfo('peticao', data);
+                } catch (err) {
+                    conteudoPeticao.innerHTML = `<p class="text-red-500">Erro: ${err.message || 'Ocorreu um erro ao gerar a petição.'}</p>`;
+                    toggleDisplay(resultadoPeticao, true);
+                } finally {
+                    toggleSpinner('peticao-spinner', false);
+                }
+            });
+            
+            // Extração de Texto
+            const btnExtrairTexto = document.getElementById('btn-extrair-texto');
+            btnExtrairTexto.addEventListener('click', async () => {
+                const arquivoUpload = document.getElementById('arquivo-upload');
+                if (!arquivoUpload.files || arquivoUpload.files.length === 0) {
+                    alert('Por favor, selecione um arquivo para extrair o texto.');
+                    return;
+                }
+                
+                const file = arquivoUpload.files[0];
+                const corrigirErros = document.getElementById('extracao-corrigir-erros').checked;
+                const manterFormatacao = document.getElementById('extracao-manter-formatacao').checked;
+                
+                toggleSpinner('extracao-spinner', true);
+                const resultadoExtracao = document.getElementById('resultado-extracao');
+                const conteudoExtracao = document.getElementById('conteudo-extracao');
+                toggleDisplay(resultadoExtracao, false);
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('arquivo', file);
+                    formData.append('corrigirErros', corrigirErros);
+                    formData.append('manterFormatacao', manterFormatacao);
+                    
+                    const response = await fetch(`${API_BASE_URL}/ai/extracao`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await handleApiResponse(response);
+                    conteudoExtracao.textContent = data.resultado;
+                    toggleDisplay(resultadoExtracao, true);
+                    
+                    // Atualizar informações de tokens
+                    updateTokenInfo('extracao', data);
+                } catch (err) {
+                    // Exibir mensagem de erro mais amigável
+                    let mensagemErro = err.message || 'Ocorreu um erro ao extrair o texto.';
+                    
+                    // Mensagens personalizadas para erros comuns
+                    if (mensagemErro.includes('Formato de arquivo não suportado') || 
+                        mensagemErro.includes('Invalid MIME type')) {
+                        mensagemErro = 'Este formato de arquivo não é suportado. Por favor, use imagens (JPG, PNG, WEBP) ou PDFs.';
+                    }
+                    
+                    conteudoExtracao.textContent = `Erro: ${mensagemErro}`;
+                    toggleDisplay(resultadoExtracao, true);
+                } finally {
+                    toggleSpinner('extracao-spinner', false);
+                }
+            });
+            
+            // Copiar texto extraído
+            const btnCopiarTexto = document.getElementById('btn-copiar-texto');
+            btnCopiarTexto.addEventListener('click', () => {
+                const conteudoExtracao = document.getElementById('conteudo-extracao');
+                
+                try {
+                    navigator.clipboard.writeText(conteudoExtracao.textContent);
+                    const textoBotao = btnCopiarTexto.textContent;
+                    btnCopiarTexto.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Copiado!
+                    `;
+                    setTimeout(() => {
+                        btnCopiarTexto.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Copiar
+                        `;
+                    }, 2000);
+                } catch (err) {
+                    console.error('Erro ao copiar texto:', err);
+                }
+            });
+            
+            // Análise Jurídica
+            const btnFazerAnalise = document.getElementById('btn-fazer-analise');
+            btnFazerAnalise.addEventListener('click', async () => {
+                const tipoAnalise = document.getElementById('tipo-analise').value;
+                const textoAnalise = document.getElementById('texto-analise').value.trim();
+                const perguntaEspecifica = document.getElementById('pergunta-especifica').value.trim();
+                
+                if (!tipoAnalise) {
+                    alert('Por favor, selecione o tipo de análise.');
+                    return;
+                }
+                
+                if (!textoAnalise) {
+                    alert('Por favor, insira o texto para análise.');
+                    return;
+                }
+                
+                toggleSpinner('analise-spinner', true);
+                const resultadoAnalise = document.getElementById('resultado-analise');
+                const conteudoAnalise = document.getElementById('conteudo-analise');
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/ai/analise`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            tipoAnalise,
+                            textoAnalise,
+                            perguntaEspecifica
+                        })
+                    });
+                    
+                    const data = await handleApiResponse(response);
+                    conteudoAnalise.innerHTML = marked.parse(data.resultado);
+                    toggleDisplay(resultadoAnalise, true);
+
+                    // Adicionar botão de copiar
+                    adicionarBotaoCopiar('resultado-analise', 'conteudo-analise');
+                    
+                    // Atualizar informações de tokens
+                    updateTokenInfo('analise', data);
+                } catch (err) {
+                    conteudoAnalise.innerHTML = `<p class="text-red-500">Erro: ${err.message || 'Ocorreu um erro ao realizar a análise.'}</p>`;
+                    toggleDisplay(resultadoAnalise, true);
+                } finally {
+                    toggleSpinner('analise-spinner', false);
+                }
+            });
+        }
+
+        // Setup para a funcionalidade de Consulta CNJ
+        function setupConsultaCNJ() {          
+            
+            // Mascaramento do número do processo
+            const inputNumeroProcesso = document.getElementById('numero-processo');
+            if (inputNumeroProcesso) {
+                IMask(inputNumeroProcesso, {
+                    mask: '0000000-00.0000.0.00.0000'
+                });
+            }
+            
+            // Carregar lista de tribunais
+            carregarTribunais();
+            
+            // Configuração do formulário de consulta
+            const formConsultaProcesso = document.getElementById('form-consulta-processo');
+            const btnLimparConsulta = document.getElementById('btn-limpar-consulta');
+            
+            if (formConsultaProcesso) {
+                formConsultaProcesso.addEventListener('submit', function(event) {
+                    event.preventDefault();
+                    consultarProcesso();
+                });
+            }
+            
+            if (btnLimparConsulta) {
+                btnLimparConsulta.addEventListener('click', function() {
+                    limparConsulta();
+                });
+            }
+        }
+        
+        // Função para carregar a lista de tribunais
+        async function carregarTribunais() {
+            const selectTribunal = document.getElementById('tribunal-processo');
+            if (!selectTribunal) return;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/cnj/tribunais`);
+                const data = await handleApiResponse(response);
+                
+                if (data.success && data.tribunais) {
+                    // Agrupar tribunais por categoria
+                    const categorias = {
+                        'Tribunais Superiores': data.tribunais.filter(t => 
+                            ['tst', 'tse', 'stj', 'stm'].includes(t.codigo)),
+                        'Tribunais Regionais Federais': data.tribunais.filter(t => 
+                            t.codigo.startsWith('trf')),
+                        'Tribunais de Justiça': data.tribunais.filter(t => 
+                            t.codigo.startsWith('tj') && !t.codigo.startsWith('tjm')),
+                        'Tribunais Regionais do Trabalho': data.tribunais.filter(t => 
+                            t.codigo.startsWith('trt')),
+                        'Tribunais Regionais Eleitorais': data.tribunais.filter(t => 
+                            t.codigo.startsWith('tre')),
+                        'Tribunais de Justiça Militar': data.tribunais.filter(t => 
+                            t.codigo.startsWith('tjm'))
+                    };
+                    
+                    // Limpar options existentes
+                    selectTribunal.innerHTML = '<option value="" selected disabled>Selecione o tribunal</option>';
+                    
+                    // Adicionar categorias e tribunais
+                    Object.entries(categorias).forEach(([categoria, tribunais]) => {
+                        if (tribunais.length > 0) {
+                            const group = document.createElement('optgroup');
+                            group.label = categoria;
+                            
+                            tribunais.forEach(tribunal => {
+                                const option = document.createElement('option');
+                                option.value = tribunal.codigo;
+                                option.textContent = tribunal.nome;
+                                group.appendChild(option);
+                            });
+                            
+                            selectTribunal.appendChild(group);
+                        }
+                    });
+                } else {
+                    mostrarMensagemCNJ('Não foi possível carregar a lista de tribunais.', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar tribunais:', error);
+                mostrarMensagemCNJ('Erro ao carregar a lista de tribunais.', 'error');
+            }
+        }
+        
+        // Função para consultar processos
+        async function consultarProcesso() {
+            const numeroProcesso = document.getElementById('numero-processo').value;
+            const tribunal = document.getElementById('tribunal-processo').value;
+            
+            if (!numeroProcesso || !tribunal) {
+                mostrarMensagemCNJ('Por favor, preencha todos os campos.', 'warning');
+                return;
+            }
+            
+            const loadingDiv = document.getElementById('consulta-processo-loading');
+            const resultadoDiv = document.getElementById('resultado-consulta-processo');
+            const mensagemDiv = document.getElementById('consulta-processo-mensagem');
+            
+            // Exibir loading e esconder outros elementos
+            toggleDisplay(loadingDiv, true);
+            toggleDisplay(resultadoDiv, false);
+            toggleDisplay(mensagemDiv, false);
+            toggleSpinner('cnj-spinner', true);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/cnj/consultar`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        numeroProcesso,
+                        tribunal
+                    })
+                });
+                
+                const data = await handleApiResponse(response);
+                
+                // Esconder loading
+                toggleDisplay(loadingDiv, false);
+                toggleSpinner('cnj-spinner', false);
+                
+                if (!data.success) {
+                    mostrarMensagemCNJ(data.error || 'Erro ao processar a consulta.', 'error');
+                    return;
+                }
+                
+                // Verificar se encontrou o processo
+                if (!data.encontrado) {
+                    mostrarMensagemCNJ('Processo não encontrado. Verifique o número e o tribunal selecionado.', 'warning');
+                    return;
+                }
+                
+                // Verificar se o processo está sob sigilo
+                if (data.sigilo) {
+                    mostrarMensagemCNJ('Este processo está sob sigilo judicial e suas informações não podem ser exibidas.', 'info');
+                    return;
+                }
+                
+                // Preencher dados do processo
+                preencherDadosProcesso(data);
+                
+                // Exibir resultado
+                toggleDisplay(resultadoDiv, true);
+                
+                // Atualizar informação de tempo de processamento
+                updateTokenInfo('cnj', data);
+                
+                
+            } catch (error) {
+                console.error('Erro ao consultar processo:', error);
+                toggleDisplay(loadingDiv, false);
+                toggleSpinner('cnj-spinner', false);
+                mostrarMensagemCNJ('Ocorreu um erro ao processar sua solicitação. Tente novamente mais tarde.', 'error');
+            }
+        }
+        
+        // Função para preencher dados do processo na interface
+        function preencherDadosProcesso(data) {
+            // Primeiro, vamos limpar todos os seletores de instância existentes
+            const seletoresAntigos = document.querySelectorAll('.seletor-instancia');
+            seletoresAntigos.forEach(seletor => seletor.remove());
+
+            console.log("Dados recebidos:", data); // Para debug
+
+            // Adaptar para diferentes estruturas de dados possíveis
+            if (data.instancias && data.instancias.length > 0) {
+                // É o formato com múltiplas instâncias explícitas
+                const instancias = data.instancias;
+                
+                // Criar seletor de instância na parte superior
+                const seletorInstancia = document.createElement('div');
+                seletorInstancia.className = 'seletor-instancia mb-4 p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900';
+                seletorInstancia.innerHTML = `
+                    <h4 class="text-base font-medium mb-2">Este processo possui múltiplas instâncias:</h4>
+                    <div class="flex flex-wrap gap-2">
+                        ${instancias.map((instancia, index) => `
+                            <button class="selector-instancia px-3 py-2 rounded-md font-medium ${index === 0 ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}" 
+                                    data-index="${index}">
+                                ${instancia.grau ? getInstanciaNome(instancia.grau) : 'Instância'} - ${instancia.orgaoJulgador?.nome || 'Não informado'}
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                
+                // Inserir antes do resultado
+                const resultadoDiv = document.getElementById('resultado-consulta-processo');
+                resultadoDiv.insertBefore(seletorInstancia, resultadoDiv.firstChild);
+                
+                // Adicionar evento aos botões de seleção
+                const botoesInstancia = document.querySelectorAll('.selector-instancia');
+                botoesInstancia.forEach(botao => {
+                    botao.addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-index'));
+                        // Atualizar estilo dos botões
+                        botoesInstancia.forEach(b => {
+                            b.classList.remove('bg-primary', 'text-white');
+                            b.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                        });
+                        this.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                        this.classList.add('bg-primary', 'text-white');
+                        
+                        // Exibir dados da instância selecionada
+                        exibirDadosInstancia(instancias[index]);
+                    });
+                });
+                
+                // Exibir a primeira instância por padrão
+                exibirDadosInstancia(instancias[0]);
+            } else {
+                // Tentar exibir como formato padrão
+                exibirDadosPadrao(data);
+            }
+            
+            // Adicionar botão de PDF se ainda não existir
+            try {
+                adicionarBotaoPDF();
+            } catch (error) {
+                console.error("Erro ao adicionar botão PDF:", error);
+            }
+        }
+
+        // Função auxiliar para obter nome da instância
+        function getInstanciaNome(grau) {
+            switch(grau) {
+                case 'JE': return 'Juizado Especial';
+                case 'TR': return 'Tribunal/Recurso';
+                case 'SG': return 'Segunda Instância';
+                case 'PG': return 'Primeira Instância';
+                default: return grau;
+            }
+        }
+
+        // Função para exibir dados de uma única instância
+        function exibirDadosInstancia(instancia) {
+            try {
+                console.log("Exibindo instância:", instancia); // Para debug
+                
+                // Preencher dados básicos
+                document.querySelector('#processo-numero span').textContent = instancia.numeroProcesso || '';
+                
+                // Tribunal - com verificação de estrutura
+                if (instancia.tribunal) {
+                    document.getElementById('processo-tribunal').textContent = 
+                        typeof instancia.tribunal === 'string' ? instancia.tribunal : 
+                        (instancia.tribunal.nome || 'Não informado');
+                } else {
+                    document.getElementById('processo-tribunal').textContent = 'Não informado';
+                }
+                
+                // Classe - com verificação de estrutura
+                if (instancia.classe) {
+                    document.getElementById('processo-classe').textContent = 
+                        typeof instancia.classe === 'string' ? instancia.classe : 
+                        `${instancia.classe.codigo || ''} - ${instancia.classe.nome || ''}`.trim() || 'Não informado';
+                } else {
+                    document.getElementById('processo-classe').textContent = 'Não informado';
+                }
+                
+                // Órgão julgador - com verificação de estrutura
+                if (instancia.orgaoJulgador) {
+                    document.getElementById('processo-orgao').textContent = 
+                        typeof instancia.orgaoJulgador === 'string' ? instancia.orgaoJulgador : 
+                        (instancia.orgaoJulgador.nome || 'Não informado');
+                } else {
+                    document.getElementById('processo-orgao').textContent = 'Não informado';
+                }
+                
+                // Dados complementares
+                document.getElementById('processo-data-ajuizamento').textContent = 
+                    instancia.dataAjuizamento || instancia.ajuizamento || 'Não informado';
+                document.getElementById('processo-ultima-atualizacao').textContent = 
+                    instancia.ultimaAtualizacao || instancia.atualizacao || 'Não informado';
+                    
+                // Sistema - com verificação de estrutura
+                if (instancia.sistema) {
+                    document.getElementById('processo-sistema').textContent = 
+                        typeof instancia.sistema === 'string' ? instancia.sistema : 
+                        (instancia.sistema.nome || 'Não informado');
+                } else {
+                    document.getElementById('processo-sistema').textContent = 'Não informado';
+                }
+                
+                // Assuntos
+                const assuntosContainer = document.getElementById('processo-assuntos');
+                assuntosContainer.innerHTML = '';
+                
+                if (instancia.assuntos && instancia.assuntos.length > 0) {
+                    instancia.assuntos.forEach(assunto => {
+                        const badge = document.createElement('span');
+                        badge.className = 'px-2 py-1 text-xs rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+                        badge.textContent = typeof assunto === 'string' ? assunto : (assunto.nome || 'Assunto');
+                        assuntosContainer.appendChild(badge);
+                    });
+                } else {
+                    assuntosContainer.innerHTML = '<span class="text-sm text-gray-500">Não informado</span>';
+                }
+                
+                // Preencher movimentações - verificando campo que pode ter nome diferente
+                const movimentos = instancia.movimentos || instancia.movimentacoes || [];
+                const movimentosContainer = document.getElementById('processo-movimentos');
+                movimentosContainer.innerHTML = ''; // Limpar movimentações anteriores
+                
+                if (movimentos && movimentos.length > 0) {
+                    movimentos.forEach((movimento, index) => {
+                        const movimentoEl = document.createElement('div');
+                        movimentoEl.className = 'timeline-item';
+                        
+                        // Alternância de cor para facilitar a leitura
+                        const bgColor = index % 2 === 0 ? 'bg-gray-50 dark:bg-gray-800' : '';
+                        
+                        // Verificação de campo data e nome/descricao
+                        const dataMovimento = movimento.data || '';
+                        const nomeMovimento = movimento.nome || movimento.descricao || '';
+                        
+                        // Adaptação para diferentes estruturas de complementos
+                        let complementosHTML = '';
+                        if (movimento.complementos && movimento.complementos.length > 0) {
+                            complementosHTML = `
+                                <div class="complementos text-sm">
+                                    ${movimento.complementos.map(c => {
+                                        const nome = c.nome || '';
+                                        const valor = c.valor || '';
+                                        const descricao = c.descricao || '';
+                                        return `<div><strong>${nome}:</strong> ${valor} ${descricao ? `(${descricao})` : ''}</div>`;
+                                    }).join('')}
+                                </div>`;
+                        }
+                        
+                        movimentoEl.innerHTML = `
+                            <div class="timeline-date">${dataMovimento}</div>
+                            <div class="timeline-content ${bgColor}">
+                                <h6 class="mb-1 font-medium">${nomeMovimento}</h6>
+                                ${complementosHTML}
+                            </div>
+                        `;
+                        
+                        movimentosContainer.appendChild(movimentoEl);
+                    });
+                } else {
+                    movimentosContainer.innerHTML = '<p class="text-gray-500 dark:text-gray-400">Nenhuma movimentação encontrada.</p>';
+                }
+            } catch (error) {
+                console.error("Erro ao exibir dados da instância:", error);
+                mostrarMensagemCNJ('Erro ao processar dados do processo: ' + error.message, 'error');
+            }
+        }
+
+        // Função para manter compatibilidade com o formato antigo
+        function exibirDadosPadrao(data) {
+            try {
+                console.log("Exibindo formato padrão:", data); // Para debug
+                
+                // Adaptar para diferentes estruturas possíveis
+                const processo = data.processo || data;
+                const movimentos = data.movimentos || processo.movimentos || processo.movimentacoes || [];
+                
+                // Preencher dados básicos
+                document.querySelector('#processo-numero span').textContent = 
+                    processo.numeroProcesso || processo.numero || '';
+                    
+                // Tribunal - com verificação de estrutura
+                if (processo.tribunal) {
+                    document.getElementById('processo-tribunal').textContent = 
+                        typeof processo.tribunal === 'string' ? processo.tribunal : 
+                        (processo.tribunal.nome || 'Não informado');
+                } else {
+                    document.getElementById('processo-tribunal').textContent = 'Não informado';
+                }
+                
+                // Classe - com verificação de estrutura
+                if (processo.classe) {
+                    document.getElementById('processo-classe').textContent = 
+                        typeof processo.classe === 'string' ? processo.classe : 
+                        `${processo.classe.codigo || ''} - ${processo.classe.nome || ''}`.trim() || 'Não informado';
+                } else {
+                    document.getElementById('processo-classe').textContent = 'Não informado';
+                }
+                
+                // Órgão julgador - com verificação de estrutura
+                const orgaoJulgador = processo.orgaoJulgador || processo.vara || processo.orgao;
+                if (orgaoJulgador) {
+                    document.getElementById('processo-orgao').textContent = 
+                        typeof orgaoJulgador === 'string' ? orgaoJulgador : 
+                        (orgaoJulgador.nome || 'Não informado');
+                } else {
+                    document.getElementById('processo-orgao').textContent = 'Não informado';
+                }
+                
+                // Dados complementares
+                document.getElementById('processo-data-ajuizamento').textContent = 
+                    processo.dataAjuizamento || processo.ajuizamento || 'Não informado';
+                document.getElementById('processo-ultima-atualizacao').textContent = 
+                    processo.ultimaAtualizacao || processo.atualizacao || 'Não informado';
+                    
+                // Sistema - com verificação de estrutura
+                if (processo.sistema) {
+                    document.getElementById('processo-sistema').textContent = 
+                        typeof processo.sistema === 'string' ? processo.sistema : 
+                        (processo.sistema.nome || 'Não informado');
+                } else {
+                    document.getElementById('processo-sistema').textContent = 'Não informado';
+                }
+                
+                // Assuntos
+                const assuntosContainer = document.getElementById('processo-assuntos');
+                assuntosContainer.innerHTML = '';
+                
+                if (processo.assuntos && processo.assuntos.length > 0) {
+                    processo.assuntos.forEach(assunto => {
+                        const badge = document.createElement('span');
+                        badge.className = 'px-2 py-1 text-xs rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+                        badge.textContent = typeof assunto === 'string' ? assunto : (assunto.nome || 'Assunto');
+                        assuntosContainer.appendChild(badge);
+                    });
+                } else {
+                    assuntosContainer.innerHTML = '<span class="text-sm text-gray-500">Não informado</span>';
+                }
+                
+                // Preencher movimentações
+                const movimentosContainer = document.getElementById('processo-movimentos');
+                movimentosContainer.innerHTML = ''; // Limpar movimentações anteriores
+                
+                if (movimentos && movimentos.length > 0) {
+                    movimentos.forEach((movimento, index) => {
+                        const movimentoEl = document.createElement('div');
+                        movimentoEl.className = 'timeline-item';
+                        
+                        // Alternância de cor para facilitar a leitura
+                        const bgColor = index % 2 === 0 ? 'bg-gray-50 dark:bg-gray-800' : '';
+                        
+                        // Verificação de campo data e nome/descricao
+                        const dataMovimento = movimento.data || '';
+                        const nomeMovimento = movimento.nome || movimento.descricao || '';
+                        
+                        // Adaptação para diferentes estruturas de complementos
+                        let complementosHTML = '';
+                        if (movimento.complementos && movimento.complementos.length > 0) {
+                            complementosHTML = `
+                                <div class="complementos text-sm">
+                                    ${movimento.complementos.map(c => {
+                                        const nome = c.nome || '';
+                                        const valor = c.valor || '';
+                                        const descricao = c.descricao || '';
+                                        return `<div><strong>${nome}:</strong> ${valor} ${descricao ? `(${descricao})` : ''}</div>`;
+                                    }).join('')}
+                                </div>`;
+                        }
+                        
+                        movimentoEl.innerHTML = `
+                            <div class="timeline-date">${dataMovimento}</div>
+                            <div class="timeline-content ${bgColor}">
+                                <h6 class="mb-1 font-medium">${nomeMovimento}</h6>
+                                ${complementosHTML}
+                            </div>
+                        `;
+                        
+                        movimentosContainer.appendChild(movimentoEl);
+                    });
+                } else {
+                    movimentosContainer.innerHTML = '<p class="text-gray-500 dark:text-gray-400">Nenhuma movimentação encontrada.</p>';
+                }
+            } catch (error) {
+                console.error("Erro ao exibir dados padrão:", error);
+                mostrarMensagemCNJ('Erro ao processar dados do processo: ' + error.message, 'error');
+            }
+        }
+        
+        // Função para mostrar mensagens na consulta CNJ
+        function mostrarMensagemCNJ(texto, tipo) {
+            const mensagemDiv = document.getElementById('consulta-processo-mensagem');
+            const alertDiv = mensagemDiv.querySelector('div');
+            const mensagemTexto = document.getElementById('mensagem-texto');
+            
+            // Definir tipo de alerta
+            let alertClass = 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
+            
+            switch (tipo) {
+                case 'error':
+                    alertClass = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+                    break;
+                case 'warning':
+                    alertClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+                    break;
+                case 'info':
+                    alertClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+                    break;
+                case 'success':
+                    alertClass = 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+                    break;
+            }
+            
+            alertDiv.className = `px-4 py-3 rounded-lg ${alertClass}`;
+            mensagemTexto.textContent = texto;
+            
+            toggleDisplay(mensagemDiv, true);
+            toggleDisplay(document.getElementById('resultado-consulta-processo'), false);
+        }
+        
+        // Função para limpar a consulta
+        function limparConsulta() {
+            document.getElementById('form-consulta-processo').reset();
+            toggleDisplay(document.getElementById('resultado-consulta-processo'), false);
+            toggleDisplay(document.getElementById('consulta-processo-mensagem'), false);
+        }
+
+        // Inicializar a aplicação
+        document.addEventListener('DOMContentLoaded', () => {
+            setupTabs();
+            setupPeticaoForm();
+            setupFileUpload();
+            setupActions();
+            setupConsultaCNJ();
+            
+            // Ativar a primeira aba por padrão
+            document.getElementById('tab-resumo').classList.add('active', 'bg-primary', 'text-white', 'border-b-2', 'border-primary');
+        });
+    </script>
+</body>
+</html>
