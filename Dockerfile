@@ -37,6 +37,11 @@ COPY --from=build /app .
 # O EXPOSE é mais uma documentação, mas é uma boa prática
 EXPOSE 3000
 
+# Cria o diretório de uploads ANTES de mudar de usuário
+RUN mkdir -p /app/uploads
+# Dá a propriedade do diretório de uploads ao usuário 'node'
+RUN chown -R node:node /app/uploads
+
 # Adiciona uma camada de segurança rodando com um usuário não-root
 # O usuário 'node' já existe na imagem oficial do Node.js
 USER node
