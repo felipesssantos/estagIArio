@@ -15,6 +15,11 @@ provider "aws" {
   region = var.aws_region
 }
 
+# ARN da role para dar permissão a ela dentro do K8s
+data "aws_iam_role" "github_actions_role" {
+  name = "github-actions-eks-deploy-role"
+}
+
 # 1. Cria a VPC, Subnets e Gateways necessários para o EKS
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
@@ -48,6 +53,17 @@ module "eks" {
   subnet_ids = module.vpc.private_subnets
 
   cluster_endpoint_public_access = true
+
+  # permissão à role do GitHub Actions
+  manage_aws_auth_configmap = true
+
+  aws_auth_roles = [
+    {
+      rolearn  = data.aws_iam_role.github_actions_role.arn
+      username = "github-actions-admin"
+      groups   = ["system:masters"] # Grupo de administradores do K8s
+    }
+  ]
 
   # Configuração do Node Group (as instâncias EC2 que rodarão os pods)
   eks_managed_node_groups = {
