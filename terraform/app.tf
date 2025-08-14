@@ -46,7 +46,7 @@ resource "kubernetes_deployment" "app_deployment" {
           name  = var.app_name
           image = var.app_image # A imagem vem da pipeline de CI/CD
 
-          ports {
+          port {
             container_port = var.app_port
           }
 
