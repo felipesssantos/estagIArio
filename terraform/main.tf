@@ -75,8 +75,9 @@ module "eks" {
       namespace = "kube-system"
     }
     data = {
+      # A função yamlencode converte a lista de mapas diretamente para uma string YAML
       mapRoles = yamlencode(local.aws_auth_roles)
-      mapUsers = yamlencode([]) # Não precisamapear usuários, apenas a role
+      mapUsers = "[]" # Uma string vazia de lista YAML
     }
   })
 
