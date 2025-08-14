@@ -19,6 +19,17 @@ data "aws_iam_role" "github_actions_role" {
   name = "github-actions-eks-deploy-role" 
 }
 
+# Bloco para definir os dados que será usado no ConfigMap
+locals {
+  aws_auth_roles = [
+    {
+      rolearn  = data.aws_iam_role.github_actions_role.arn
+      username = "github-actions-admin"
+      groups   = ["system:masters"]
+    }
+  ]
+}
+
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.0.0"
@@ -40,8 +51,8 @@ module "vpc" {
 }
 
 module "eks" {
-  source  = "terraform-aws-modules/eks/aws" 
-  version = "18.31.0"
+  source  = "terraform-aws-modules/eks/aws"  
+  version = "20.8.4"
 
   cluster_name    = var.eks_cluster_name
   cluster_version = "1.29"
@@ -51,20 +62,7 @@ module "eks" {
 
   cluster_endpoint_public_access = true
 
-  
-  map_roles = [
-    {
-      rolearn  = data.aws_iam_role.github_actions_role.arn
-      username = "github-actions-admin"
-      groups   = ["system:masters"]
-    }
-  ]
-
-
-  eks_managed_node_group_defaults = {
-    iam_role_attach_cni_policy = true
-  }
-
+ 
   eks_managed_node_groups = {
     main = {
       min_size     = 1
@@ -89,3 +87,21 @@ provider "kubernetes" {
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
   token                  = data.aws_eks_cluster_auth.cluster.token
 }
+
+
+# --- NOVA SEÇÃO: CRIANDO O CONFIGMAP AWS-AUTH MANUALMENTE ---
+resource "kubernetes_config_map_v1_data" "aws_auth" {
+  # CRÍTICO: Garante que o ConfigMap só seja criado DEPOIS que o cluster e os nós estiverem prontos
+  depends_on = [module.eks]
+
+  metadata {
+    name      = "aws-auth"
+    namespace = "kube-system"
+  }
+
+  data = {
+    mapRoles = yamlencode(local.aws_auth_roles)
+    mapUsers = "[]"
+  }
+}
+# --- FIM DA NOVA SEÇÃO ---
