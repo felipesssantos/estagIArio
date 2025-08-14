@@ -47,6 +47,8 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
+  cluster_endpoint_public_access = true
+
   # Configuração do Node Group (as instâncias EC2 que rodarão os pods)
   eks_managed_node_groups = {
     main = {
