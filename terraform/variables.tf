@@ -26,3 +26,15 @@ variable "eks_cluster_name" {
   description = "O nome do cluster EKS na AWS."
   default     = 2
 }
+
+variable "openai_api_key" {
+  type        = string
+  description = "A chave de API da OpenAI."
+  sensitive   = true # Boa prática para não exibir o valor nos logs
+}
+
+variable "cnj_api_key" {
+  type        = string
+  description = "A chave de API do CNJ."
+  sensitive   = true
+}
