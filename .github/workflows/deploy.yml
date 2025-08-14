@@ -1,4 +1,4 @@
-name: Deploy to Amazon EKS
+name: Deploy to Amazon EKS with Terraform
 
 # Gatilho: Roda a pipeline toda vez que houver um push na branch 'main'
 on:
@@ -44,16 +44,26 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      # 5. Faz o deploy no Amazon EKS
-      - name: Deploy to Amazon EKS
-        env:
-          EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
+      # 5. Instala o Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      # 6. Inicializa o Terraform
+      # O -backend-config permite configurar o backend S3 para armazenar o estado do terraform
+      - name: Terraform Init
         run: |
-          # Configura o contexto do kubectl para o seu cluster EKS
-          aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
-          
-          # Atualiza a imagem do seu deployment no Kubernetes
-          # Substitua 'estagiario-deployment' pelo nome do seu deployment
-          # Substitua 'estagiario-container' pelo nome do seu container dentro do deployment
-          kubectl set image deployment/estagiario-deployment estagiario-container=${{ steps.build-image.outputs.image }} -n default
+          terraform -chdir=./terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=estagiario/terraform.tfstate" \
+            -backend-config="region=${{ secrets.AWS_REGION }}"
+
+      # 7. Executa o Terraform para aplicar as mudanças
+      - name: Terraform Apply
+        run: |
+          terraform -chdir=./terraform apply -auto-approve \
+            -var="app_image=${{ steps.build-image.outputs.image }}" \
+            -var="eks_cluster_name=${{ secrets.EKS_CLUSTER_NAME }}" \
+            -var="openai_api_key=${{ secrets.OPENAI_API_KEY }}" \
+            -var="cnj_api_key=${{ secrets.CNJ_API_KEY }}"
