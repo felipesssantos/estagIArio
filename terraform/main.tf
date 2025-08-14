@@ -15,23 +15,10 @@ provider "aws" {
   region = var.aws_region
 }
 
-# ARN da role para dar permissão a ela dentro do K8s
 data "aws_iam_role" "github_actions_role" {
-  name = "github-actions-eks-deploy-role"
+  name = "github-actions-eks-deploy-role" 
 }
 
-# Bloco para definir os dados no ConfigMap
-locals {
-  aws_auth_roles = [
-    {
-      rolearn  = data.aws_iam_role.github_actions_role.arn
-      username = "github-actions-admin"
-      groups   = ["system:masters"]
-    }
-  ]
-}
-
-# 1. Cria a VPC, Subnets e Gateways necessários para o EKS
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.0.0"
@@ -52,10 +39,9 @@ module "vpc" {
   }
 }
 
-# 2. Cria o Cluster EKS
 module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "20.8.4"
+  source  = "terraform-aws-modules/eks/aws" 
+  version = "18.31.0"
 
   cluster_name    = var.eks_cluster_name
   cluster_version = "1.29"
@@ -65,29 +51,25 @@ module "eks" {
 
   cluster_endpoint_public_access = true
 
-  # GERAR O AWS-AUTH CONFIGMAP
   
-  aws_auth_configmap_yaml = yamlencode({
-    apiVersion = "v1"
-    kind       = "ConfigMap"
-    metadata = {
-      name      = "aws-auth"
-      namespace = "kube-system"
+  map_roles = [
+    {
+      rolearn  = data.aws_iam_role.github_actions_role.arn
+      username = "github-actions-admin"
+      groups   = ["system:masters"]
     }
-    data = {
-      # A função yamlencode converte a lista de mapas diretamente para uma string YAML
-      mapRoles = yamlencode(local.aws_auth_roles)
-      mapUsers = "[]" # Uma string vazia de lista YAML
-    }
-  })
+  ]
 
-  # Configuração do Node Group (as instâncias EC2 que rodarão os pods)
+
+  eks_managed_node_group_defaults = {
+    iam_role_attach_cni_policy = true
+  }
+
   eks_managed_node_groups = {
     main = {
       min_size     = 1
       max_size     = 3
       desired_size = 2
-
       instance_types = ["t3.medium"]
     }
   }
@@ -98,12 +80,10 @@ module "eks" {
   }
 }
 
-# 3. Usa uma fonte de dados para gerar um token de autenticação para o cluster
 data "aws_eks_cluster_auth" "cluster" {
   name = module.eks.cluster_name
 }
 
-# 4. Configura o provider do Kubernetes para se conectar ao cluster
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
