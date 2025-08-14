@@ -59,11 +59,12 @@ jobs:
             -backend-config="key=estagiario/terraform.tfstate" \
             -backend-config="region=${{ secrets.AWS_REGION }}"
 
-      # 7. Executa o Terraform para aplicar as mudanças
+      # 7. Executa o Terraform para criar/atualizar a infraestrutura
       - name: Terraform Apply
         run: |
           terraform -chdir=./terraform apply -auto-approve \
-            -var="app_image=${{ steps.build-image.outputs.image }}" \
+            -var="aws_region=${{ secrets.AWS_REGION }}" \
             -var="eks_cluster_name=${{ secrets.EKS_CLUSTER_NAME }}" \
+            -var="app_image=${{ steps.build-image.outputs.image }}" \
             -var="openai_api_key=${{ secrets.OPENAI_API_KEY }}" \
             -var="cnj_api_key=${{ secrets.CNJ_API_KEY }}"
