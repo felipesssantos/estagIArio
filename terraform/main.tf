@@ -76,7 +76,7 @@ module "eks" {
     }
     data = {
       mapRoles = yamlencode(local.aws_auth_roles)
-      mapUsers = yamlencode([]) # Não precisamos mapear usuários, apenas a role
+      mapUsers = yamlencode([]) # Não precisamapear usuários, apenas a role
     }
   })
 
